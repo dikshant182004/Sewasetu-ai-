@@ -13,13 +13,21 @@
   <tr><th>Status</th><td><b>{{ a[8] }}</b></td></tr>
   <tr><th>Submitted</th><td>{{ a[9] }}</td></tr>
   <tr><th>Decided</th><td>{{ a[10] or '-' }}</td></tr>
+  {% if due %}
+  <tr><th>Decision due by</th><td>{{ due.strftime('%d %b %Y') }}
+    <span class="note">(if no decision is made by then, the application is treated as approved under the RTPS Act)</span></td></tr>
+  {% elif a[8] == 'PENDING' %}
+  <tr><th>Decision</th><td>An officer will review this application.</td></tr>
+  {% endif %}
+  {% if reason %}<tr><th>Reason given</th><td>{{ reason }}</td></tr>{% endif %}
 </table>
 <p><a href="/ack/{{ app_id }}.pdf">Download Acknowledgment (PDF)</a> &middot;
 <a href="/status/connections">Connected applications</a></p>
 {% if a[8] == 'PENDING' %}
 <h3>Made a mistake?</h3>
 <p class="note">A pending application can be withdrawn. After withdrawing, you may
-submit a fresh application with the same mobile number.</p>
+submit a fresh application with the same mobile number, but a fresh application
+starts a new {{ sla }}-day processing period.</p>
 <form method="post" action="/application/{{ app_id }}/withdraw"
       onsubmit="return confirm('Withdraw application {{ a[0] }}? This cannot be undone.');">
   <button class="btn" style="background:#a33" type="submit">Withdraw this application</button>

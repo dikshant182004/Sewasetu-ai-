@@ -33,10 +33,19 @@ CREATE TABLE IF NOT EXISTS otps (
     id         SERIAL PRIMARY KEY,
     mobile     VARCHAR(15),
     code       VARCHAR(6),
-    created_at TIMESTAMP
+    created_at TIMESTAMP,
+    attempts   INTEGER NOT NULL DEFAULT 0      -- wrong guesses against this code (locks at 5)
 );
 
 CREATE INDEX IF NOT EXISTS idx_app_mobile ON applications(mobile);
+
+-- Integrity the application used to only hope for:
+--  * an application number identifies exactly one application
+--  * a mobile number holds at most one live application (the rule the form states),
+--    enforced by the database so two simultaneous submissions cannot both succeed
+CREATE UNIQUE INDEX IF NOT EXISTS ux_app_application_no ON applications(application_no);
+CREATE UNIQUE INDEX IF NOT EXISTS ux_app_one_active_per_mobile ON applications(mobile)
+    WHERE status IN ('PENDING', 'APPROVED', 'DEEMED_APPROVED');
 CREATE INDEX IF NOT EXISTS idx_app_status ON applications(status);
 
 -- Who did what to an application, and when (submit / withdraw / approve / reject / deemed).

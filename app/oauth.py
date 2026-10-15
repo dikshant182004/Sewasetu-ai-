@@ -85,7 +85,7 @@ def signing_key():
                                 serialization.NoEncryption()).decode("ascii")
         kid = secrets.token_hex(8)
         cur.execute("INSERT INTO oauth_keys (kid, private_pem, created_at) VALUES (%s, %s, %s) "
-                    "ON CONFLICT DO NOTHING", (kid, pem, datetime.now()))
+                    "ON CONFLICT DO NOTHING", (kid, pem, portal.now_ist()))
         conn.commit()
         cur.execute("SELECT kid, private_pem FROM oauth_keys ORDER BY created_at ASC LIMIT 1")
         row = cur.fetchone()
@@ -209,7 +209,7 @@ def load_client(client_id):
     cur.execute("SELECT client_id, client_name, redirect_uris, secret_hash, kind, fetched_at "
                 "FROM oauth_clients WHERE client_id = %s", (client_id,))
     row = cur.fetchone()
-    if row and (row[4] != "cimd" or (datetime.now() - row[5]).total_seconds() < 3600):
+    if row and (row[4] != "cimd" or (portal.now_ist() - row[5]).total_seconds() < 3600):
         cur.close(); conn.close()
         return {"client_id": row[0], "client_name": row[1], "redirect_uris": row[2],
                 "secret_hash": row[3], "kind": row[4]}
@@ -227,7 +227,7 @@ def load_client(client_id):
                     "ON CONFLICT (client_id) DO UPDATE SET client_name = EXCLUDED.client_name, "
                     "redirect_uris = EXCLUDED.redirect_uris, fetched_at = EXCLUDED.fetched_at",
                     (client_id, doc.get("client_name", client_id), json.dumps(doc["redirect_uris"]),
-                     datetime.now(), datetime.now()))
+                     portal.now_ist(), portal.now_ist()))
         conn.commit()
         cur.close(); conn.close()
         return {"client_id": client_id, "client_name": doc.get("client_name", client_id),
@@ -260,7 +260,7 @@ def register():
                 "created_at, fetched_at) VALUES (%s, %s, %s, %s, 'dcr', %s, %s)",
                 (client_id, (body.get("client_name") or "Unnamed application")[:100], json.dumps(uris),
                  hashlib.sha256(secret.encode()).hexdigest() if secret else None,
-                 datetime.now(), datetime.now()))
+                 portal.now_ist(), portal.now_ist()))
     conn.commit()
     cur.close(); conn.close()
     out = {
@@ -293,7 +293,7 @@ def _load_request(rid):
                 "WHERE id = %s", (rid,))
     row = cur.fetchone()
     cur.close(); conn.close()
-    if not row or (datetime.now() - row[5]).total_seconds() > 900:
+    if not row or (portal.now_ist() - row[5]).total_seconds() > 900:
         return None
     return {"id": row[0], "params": row[1], "subject": row[2], "role": row[3],
             "pending_mobile": row[4]}
@@ -340,7 +340,7 @@ def authorize():
     conn = portal.get_db()
     cur = conn.cursor()
     cur.execute("INSERT INTO oauth_requests (id, params, role, created_at) VALUES (%s, %s, %s, %s)",
-                (rid, json.dumps(params), scopes[0], datetime.now()))
+                (rid, json.dumps(params), scopes[0], portal.now_ist()))
     conn.commit()
     cur.close(); conn.close()
     return redirect(url_for("oauth.login", rid=rid))
@@ -361,30 +361,31 @@ def login():
                 code = request.form.get("otp", "").strip()
                 conn = portal.get_db()
                 cur = conn.cursor()
-                cur.execute("SELECT code, created_at FROM otps WHERE mobile = %s ORDER BY id DESC LIMIT 1",
-                            (mobile,))
-                row = cur.fetchone()
+                result = portal.check_otp(cur, mobile, code)
+                conn.commit()               # a wrong guess is counted
                 cur.close(); conn.close()
-                if row and secrets.compare_digest(row[0], code) and \
-                        (datetime.now() - row[1]).total_seconds() <= portal.OTP_VALIDITY_SECONDS:
+                if result == "ok":
                     _update_request(rid, subject="citizen:" + mobile)
                     return redirect(url_for("oauth.consent", rid=rid))
-                flash("Invalid or expired OTP.")
+                flash(portal.OTP_MESSAGES.get(result, "Invalid or expired OTP."))
             else:
                 mobile = request.form.get("mobile", "").strip()
                 if len(mobile) != 10 or not mobile.isdigit():
                     flash("Please enter a valid 10-digit mobile number.")
                 else:
-                    code = "%06d" % secrets.randbelow(1000000)
                     conn = portal.get_db()
                     cur = conn.cursor()
-                    cur.execute("INSERT INTO otps (mobile, code, created_at) VALUES (%s, %s, %s)",
-                                (mobile, code, datetime.now()))
-                    conn.commit()
-                    cur.close(); conn.close()
-                    portal.send_sms(mobile, "Your Sewa Setu OTP is %s. Valid for 5 minutes." % code)
-                    _update_request(rid, pending_mobile=mobile)
-                    req["pending_mobile"] = mobile
+                    code, error = portal.issue_otp(cur, mobile)
+                    if error:
+                        conn.rollback()
+                        cur.close(); conn.close()
+                        flash(error)
+                    else:
+                        conn.commit()
+                        cur.close(); conn.close()
+                        portal.send_sms(mobile, "Your Sewa Setu OTP is %s. Valid for 5 minutes." % code)
+                        _update_request(rid, pending_mobile=mobile)
+                        req["pending_mobile"] = mobile
         else:
             if (portal.ADMIN_PASSWORD and request.form.get("username") == portal.ADMIN_USERNAME and
                     request.form.get("password") == portal.ADMIN_PASSWORD):
@@ -415,7 +416,7 @@ def consent():
                     "resource, subject, role, created_at) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
                     (hashlib.sha256(code.encode()).hexdigest(), p["client_id"], p["redirect_uri"],
                      p["scope"], p["code_challenge"], p["resource"], req["subject"], req["role"],
-                     datetime.now()))
+                     portal.now_ist()))
         cur.execute("DELETE FROM oauth_requests WHERE id = %s", (rid,))
         conn.commit()
         cur.close(); conn.close()
@@ -447,7 +448,7 @@ def _check_client_auth(client, form):
 
 def _issue(subject, role, scope, audience, client_id, session_ends=None, client_name=""):
     if session_ends is None:
-        session_ends = datetime.now() + timedelta(seconds=SESSION[role]["session"])
+        session_ends = portal.now_ist() + timedelta(seconds=SESSION[role]["session"])
     access, claims = mint_access_token(subject, role, scope, audience, client_id,
                                        session_ends=session_ends)
     refresh = secrets.token_urlsafe(32)
@@ -456,7 +457,7 @@ def _issue(subject, role, scope, audience, client_id, session_ends=None, client_
     cur.execute("INSERT INTO oauth_refresh_tokens (token_hash, client_id, client_name, subject, role, "
                 "scope, resource, created_at, expires_at) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
                 (hashlib.sha256(refresh.encode()).hexdigest(), client_id, client_name, subject, role,
-                 scope, audience, datetime.now(), session_ends))
+                 scope, audience, portal.now_ist(), session_ends))
     conn.commit()
     cur.close(); conn.close()
     return jsonify({"access_token": access, "token_type": "Bearer",
@@ -494,7 +495,7 @@ def token():
             return _token_error("invalid_grant", "code was issued to a different client")
         if f.get("redirect_uri") and f.get("redirect_uri") != c_redirect:
             return _token_error("invalid_grant", "redirect_uri mismatch")
-        if (datetime.now() - created).total_seconds() > CODE_TTL:
+        if (portal.now_ist() - created).total_seconds() > CODE_TTL:
             return _token_error("invalid_grant", "code expired")
         if not verifier or _b64url(hashlib.sha256(verifier.encode()).digest()) != c_challenge:
             return _token_error("invalid_grant", "PKCE verification failed")
@@ -509,7 +510,7 @@ def token():
         cur.execute("UPDATE oauth_refresh_tokens SET revoked_at = %s WHERE token_hash = %s AND "
                     "revoked_at IS NULL AND expires_at > %s RETURNING client_id, subject, role, "
                     "scope, resource, expires_at, client_name",
-                    (datetime.now(), hashlib.sha256(rt.encode()).hexdigest(), datetime.now()))
+                    (portal.now_ist(), hashlib.sha256(rt.encode()).hexdigest(), portal.now_ist()))
         row = cur.fetchone()
         conn.commit()
         cur.close(); conn.close()
@@ -535,7 +536,7 @@ def revoke():
     conn = portal.get_db()
     cur = conn.cursor()
     cur.execute("UPDATE oauth_refresh_tokens SET revoked_at = %s WHERE token_hash = %s AND revoked_at IS NULL",
-                (datetime.now(), hashlib.sha256(tok.encode()).hexdigest()))
+                (portal.now_ist(), hashlib.sha256(tok.encode()).hexdigest()))
     conn.commit()
     cur.close(); conn.close()
     return ("", 200)
@@ -546,10 +547,10 @@ def _revoke_grants(subject, token_hash=None):
     cur = conn.cursor()
     if token_hash:
         cur.execute("UPDATE oauth_refresh_tokens SET revoked_at = %s WHERE subject = %s AND token_hash = %s "
-                    "AND revoked_at IS NULL", (datetime.now(), subject, token_hash))
+                    "AND revoked_at IS NULL", (portal.now_ist(), subject, token_hash))
     else:
         cur.execute("UPDATE oauth_refresh_tokens SET revoked_at = %s WHERE subject = %s AND revoked_at IS NULL",
-                    (datetime.now(), subject))
+                    (portal.now_ist(), subject))
     n = cur.rowcount
     conn.commit()
     cur.close(); conn.close()
@@ -561,7 +562,7 @@ def _active_grants(subject):
     cur = conn.cursor()
     cur.execute("SELECT token_hash, client_name, client_id, created_at, expires_at FROM oauth_refresh_tokens "
                 "WHERE subject = %s AND revoked_at IS NULL AND expires_at > %s ORDER BY created_at DESC",
-                (subject, datetime.now()))
+                (subject, portal.now_ist()))
     rows = cur.fetchall()
     cur.close(); conn.close()
     return rows
@@ -603,7 +604,7 @@ def admin_tokens():
         cur.execute("INSERT INTO oauth_program_tokens (jti, label, subject, audience, issued_by, "
                     "created_at, expires_at) VALUES (%s, %s, %s, %s, %s, %s, %s)",
                     (claims["jti"], label, subject, audience, session.get("admin_user", portal.ADMIN_USERNAME),
-                     datetime.now(), datetime.fromtimestamp(claims["exp"])))
+                     portal.now_ist(), datetime.fromtimestamp(claims["exp"], portal.IST).replace(tzinfo=None)))
         conn.commit()
         cur.close(); conn.close()
     if request.method == "POST" and request.form.get("revoke_subject"):

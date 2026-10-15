@@ -16,6 +16,10 @@
 </table>
 
 <h3 style="color:#a33">Pending beyond {{ sla }}-day SLA: {{ overdue }}</h3>
+{% if held %}
+<p><b>{{ held }}</b> of these {{ 'was' if held == 1 else 'were' }} below the minimum age ({{ min_age }}) on the day
+they applied. They are <b>not</b> auto-approved; each needs an officer's decision.</p>
+{% endif %}
 
 <h3>Pending by Block</h3>
 <table class="tbl" style="max-width:400px">

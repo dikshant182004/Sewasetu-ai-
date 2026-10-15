@@ -8,11 +8,12 @@
 </form>
 <table class="tbl">
 <tr><th>ID</th><th>Application No</th><th>Name</th><th>Mobile</th><th>Block</th>
-<th>Status</th><th>Submitted</th><th></th></tr>
+<th>Status</th><th>Submitted</th><th>Flag</th><th></th></tr>
 {% for r in rows %}
 <tr>
   <td>{{ r[0] }}</td><td>{{ r[1] }}</td><td>{{ r[2] }}</td><td>{{ r[3] }}</td>
   <td>{{ r[4] }}</td><td>{{ r[5] }}</td><td>{{ r[6] }}</td>
+  <td>{% if r[7] %}<b style="color:#a33" title="Below the minimum age on the day they applied">under age</b>{% endif %}</td>
   <td><a href="/admin/application/{{ r[0] }}">View</a></td>
 </tr>
 {% endfor %}

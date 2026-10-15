@@ -12,21 +12,39 @@
   <tr><th>Block</th><td>{{ a[7] }}</td></tr>
   <tr><th>Bank Account</th><td>{{ a[8] }}</td></tr>
   <tr><th>IFSC</th><td>{{ a[9] }}</td></tr>
-  <tr><th>Document</th><td>{{ a[10] or '-' }}</td></tr>
+  <tr><th>Age-proof document</th><td>{% if doc_available %}<a href="/admin/document/{{ app_id }}" target="_blank">View document</a>{% else %}Not on file (record predates document storage){% endif %}</td></tr>
   <tr><th>Status</th><td><b>{{ a[11] }}</b></td></tr>
   <tr><th>Submitted</th><td>{{ a[12] }}</td></tr>
   <tr><th>Decided</th><td>{{ a[13] or '-' }} {% if a[14] %}by {{ a[14] }}{% endif %}</td></tr>
 </table>
+<h3>Checks</h3>
+<table class="tbl" style="max-width:640px">
+  <tr><th>Age on the day they applied</th><td>{{ checks.age_at_submission if checks.age_at_submission is not none else '-' }}
+    {% if checks.age_at_submission is not none and not checks.age_ok %}<b style="color:#a33">&mdash; below the minimum age of {{ min_age }}</b>{% endif %}</td></tr>
+  <tr><th>Age today</th><td>{{ checks.age_today if checks.age_today is not none else '-' }}</td></tr>
+  {% if checks.deemed_due %}
+  <tr><th>Deemed approval date</th><td>{{ checks.deemed_due.strftime('%Y-%m-%d %H:%M') }}
+    {% if checks.overdue %}<b style="color:#a33">&mdash; already past the {{ sla }}-day limit</b>{% endif %}</td></tr>
+  {% endif %}
+</table>
+{% if checks.pending and checks.age_at_submission is not none and not checks.age_ok %}
+<div class="flash">This applicant was below the minimum age when they applied. The automatic
+deemed approval will <b>not</b> approve this case; it stays pending until an officer decides.</div>
+{% elif checks.pending and checks.overdue %}
+<div class="flash">This case is past the {{ sla }}-day limit and will be approved automatically
+at the next nightly run unless it is decided first.</div>
+{% endif %}
 {% if a[11] == 'PENDING' %}
 <h3>Decision</h3>
-<form method="post" action="/admin/approve/{{ app_id }}" style="display:inline">
-  <input type="text" name="note" placeholder="Note (optional)" style="max-width:300px">
-  <button class="btn" type="submit">Approve</button>
-</form>
-&nbsp;
-<form method="post" action="/admin/reject/{{ app_id }}" style="display:inline">
-  <input type="text" name="note" placeholder="Reason for rejection" style="max-width:300px">
-  <button class="btn" style="background:#a33" type="submit">Reject</button>
+<form method="post">
+  <label for="note"><b>Reason</b> (required &mdash; recorded against your name; the applicant sees it if you reject)</label>
+  <textarea id="note" name="note" required minlength="5" maxlength="400" rows="3"
+            style="width:100%;max-width:520px"></textarea>
+  <p>
+    <button class="btn" type="submit" formaction="/admin/approve/{{ app_id }}">Approve</button>
+    &nbsp;
+    <button class="btn" style="background:#a33" type="submit" formaction="/admin/reject/{{ app_id }}">Reject</button>
+  </p>
 </form>
 {% endif %}
 <h3>Audit trail</h3>

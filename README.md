@@ -81,3 +81,25 @@ portal, checks `aud` is its own canonical URL, and reads `scope`, `role` and `su
 
 Long-lived **program tokens** for unattended use (role officer) are issued by an
 administrator at `/admin/tokens`.
+
+---
+
+## Running the fixed portal
+
+```bash
+cp .env.example .env          # then set ADMIN_PASSWORD and SECRET_KEY
+docker compose up --build -d db app smsgw
+# keep the scheduler stopped while you look around; start it to run the nightly job:
+docker compose up -d scheduler
+```
+
+Existing database (not a fresh `docker compose down -v`)? Apply the migration once:
+
+```bash
+docker compose exec -T db psql -U sewasetu sewasetu < app/migrations/001_integrity_and_otp_limits.sql
+```
+
+Tests (no database needed): `python3 -m unittest discover -s tests -v`
+Checks against the running database: `docker compose exec -T db psql -U sewasetu sewasetu < tests/verify_db.sql`
+
+What was changed and why: `docs/FINDINGS.md`.

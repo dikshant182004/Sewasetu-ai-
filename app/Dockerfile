@@ -1,6 +1,11 @@
 FROM python:3.11-slim
 
-RUN apt-get update && apt-get install -y --no-install-recommends cron \
+# fonts-noto-core: Bengali/Assamese glyphs for the acknowledgment PDF.
+# tzdata + localtime: the whole container (python, cron) runs on Indian Standard Time,
+# the same clock the seed data, the scheme deadline and the application code use.
+RUN apt-get update && apt-get install -y --no-install-recommends cron tzdata fonts-noto-core \
+    && ln -sf /usr/share/zoneinfo/Asia/Kolkata /etc/localtime \
+    && echo "Asia/Kolkata" > /etc/timezone \
     && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
