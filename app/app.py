@@ -394,7 +394,10 @@ def decide_application(cur, app_id, new_status, reason, officer, channel="portal
     row = cur.fetchone()
     if not row:
         return None, "Only a pending application can be decided."
-    write_audit(cur, app_id, new_status, "admin:%s" % officer, note)
+    # Preserve the actual actor class in the audit trail for MCP decisions.
+    # The portal's legacy web workflow remains admin:<username>.
+    actor = "officer:%s" % officer if channel == "officer-mcp" else "admin:%s" % officer
+    write_audit(cur, app_id, new_status, actor, note)
     return row[0], None
 
 
