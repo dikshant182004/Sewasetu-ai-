@@ -53,6 +53,30 @@ services:
       - uploads:/var/sewasetu/uploads
       - applogs:/var/log/sewasetu
 
+  officer-mcp:
+    build: ./app
+    command: ["uvicorn", "officer_mcp:asgi_app", "--host", "0.0.0.0", "--port", "8200", "--workers", "1"]
+    ports:
+      - "8200:8200"
+    environment:
+      TZ: Asia/Kolkata
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:8000}
+      PORTAL_ISSUER: ${PUBLIC_BASE_URL:-http://localhost:8000}
+      PORTAL_JWKS_URL: http://app:8000/.well-known/jwks.json
+      # OAuth clients must request this exact URL as the resource/audience.
+      OFFICER_MCP_PUBLIC_URL: ${OFFICER_MCP_PUBLIC_URL:-http://localhost:8200/mcp}
+      # JSON object: username -> allowed portal block names. Empty uses admin -> Sonari.
+      OFFICER_BLOCK_ASSIGNMENTS: ${OFFICER_BLOCK_ASSIGNMENTS:-}
+      # Optional JSON object: username -> password for distinct OAuth officer logins.
+      # Store deployment values as secrets; never commit real credentials.
+      OFFICER_ACCOUNTS_JSON: ${OFFICER_ACCOUNTS_JSON:-}
+    depends_on:
+      - db
+      - app
+    volumes:
+      - uploads:/var/sewasetu/uploads
+      - applogs:/var/log/sewasetu
+
   scheduler:
     build: ./app
     environment:
