@@ -31,7 +31,7 @@ docker compose up --build -d db app smsgw citizen-mcp
 - Citizen MCP: `http://localhost:8100/mcp`
 - Health: `http://localhost:8100/healthz`
 
-Configure `CITIZEN_MCP_PUBLIC_URL` to the exact public resource URL (including `/mcp`) when deployed. The OAuth client must request that exact value as the `resource` during authorization; the access token's `aud` must match it. Keep the portal and MCP behind HTTPS in production. The separate Administrator MCP must use a distinct endpoint, audience, role/scope checks, and tool registry.
+Configure `CITIZEN_MCP_PUBLIC_URL` to the exact public resource URL (including `/mcp`) when deployed. The OAuth client must request that exact value as the `resource` during authorization; the access token's `aud` must match it. Keep the portal and MCP behind HTTPS in production. The separate Officer MCP uses port 8200, a distinct audience, officer role/scope checks, per-officer block assignments, and its own tool registry; see [docs/OFFICER-MCP.md](OFFICER-MCP.md).
 
 ## Security boundaries and known limitations
 
