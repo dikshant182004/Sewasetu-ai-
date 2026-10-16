@@ -30,6 +30,24 @@ services:
       - uploads:/var/sewasetu/uploads
       - applogs:/var/log/sewasetu
 
+  citizen-mcp:
+    build: ./app
+    command: ["uvicorn", "citizen_mcp:asgi_app", "--host", "0.0.0.0", "--port", "8100", "--workers", "1"]
+    ports:
+      - "8100:8100"
+    environment:
+      TZ: Asia/Kolkata
+      PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:8000}
+      PORTAL_ISSUER: ${PUBLIC_BASE_URL:-http://localhost:8000}
+      # Set this to the exact public MCP resource URL in production. OAuth audience
+      # validation intentionally fails if the client requests a different resource.
+      CITIZEN_MCP_PUBLIC_URL: ${CITIZEN_MCP_PUBLIC_URL:-http://localhost:8100/mcp}
+    depends_on:
+      - db
+    volumes:
+      - uploads:/var/sewasetu/uploads
+      - applogs:/var/log/sewasetu
+
   scheduler:
     build: ./app
     environment:
@@ -44,7 +62,7 @@ services:
 
   smsgw:
     build: ./smsgw
-    # internal only — reached by the app over the docker network and exposed to
+    # internal only — reached by the app over the Docker network and exposed to
     # users via the app at /__gateway/ (so no second host port is needed)
     expose:
       - "8025"
