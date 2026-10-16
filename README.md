@@ -7,7 +7,7 @@ Department of Social Welfare, Government of Purvanchal. Maintained in-house.
 Copy `.env.example` to `.env`, replace `ADMIN_PASSWORD` and `SECRET_KEY` with local-only secrets, then run:
 
 ```bash
-docker compose up --build -d db app smsgw citizen-mcp officer-mcp officer-mcp
+docker compose up --build -d db app smsgw citizen-mcp officer-mcp
 ```
 
 - Portal: http://localhost:8000
@@ -22,13 +22,20 @@ docker compose up --build -d db app smsgw citizen-mcp officer-mcp officer-mcp
 
 ## Deploying on a server
 
-Set `PUBLIC_BASE_URL` to the portal's public HTTPS address. Set `CITIZEN_MCP_PUBLIC_URL` to the exact public MCP resource URL, including `/mcp`, for example `https://agents.example.in/citizen/mcp`. The OAuth client must request that exact URL as the `resource`; audience validation intentionally rejects tokens issued for another service. Put both services behind HTTPS.
+Set PUBLIC_BASE_URL to the portal's public HTTPS address and set both MCP public URLs to their exact externally reachable resource URLs, including /mcp. The OAuth client must request the matching URL as resource; each MCP rejects tokens issued for another audience. Put the portal and both MCPs behind HTTPS.
 
-```
-PUBLIC_BASE_URL=https://sewasetu.example.in \
-CITIZEN_MCP_PUBLIC_URL=https://agents.example.in/citizen/mcp \
-ADMIN_PASSWORD=pick-something docker compose up --build -d
-```
+Configure block-level officer access in OFFICER_BLOCK_ASSIGNMENTS, a JSON map from officer username to allowed block names. The default is the configured ADMIN_USERNAME assigned to Sonari only. For distinct OAuth officer accounts, set OFFICER_ACCOUNTS_JSON to a JSON map of username to password using deployment secrets; do not commit real credentials. The legacy web dashboard login remains global and must be restricted separately.
+
+Example deployment values (use a secrets manager for passwords and keys):
+
+    PUBLIC_BASE_URL=https://sewasetu.example.in
+    CITIZEN_MCP_PUBLIC_URL=https://agents.example.in/citizen/mcp
+    OFFICER_MCP_PUBLIC_URL=https://agents.example.in/officer/mcp
+    OFFICER_BLOCK_ASSIGNMENTS={"admin":["Sonari"],"meera.das":["Rajapara"]}
+
+After configuring your reverse proxy/TLS routes, start the services with:
+
+    docker compose up --build -d db app smsgw citizen-mcp officer-mcp
 
 ## What the portal does
 
@@ -72,7 +79,7 @@ Long-lived officer program tokens can be issued at `/admin/tokens`; if used, the
 ```bash
 cp .env.example .env
 # Set ADMIN_PASSWORD and SECRET_KEY in .env, then:
-docker compose up --build -d db app smsgw citizen-mcp
+docker compose up --build -d db app smsgw citizen-mcp officer-mcp
 # Start the scheduler separately when ready to exercise deemed approval:
 docker compose up -d scheduler
 python -m unittest discover -s tests -v
