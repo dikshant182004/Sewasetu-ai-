@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import base64
 import contextvars
+import json
 import logging
 import os
 import re
@@ -181,6 +182,88 @@ def check_eligibility(
             "note": "This is a preflight result, not a pension award or submission confirmation."}
 
 
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True, openWorldHint=False))
+def save_application_draft(
+    applicant_name: str | None = None,
+    dob: str | None = None,
+    gender: str | None = None,
+    marital_status: str | None = None,
+    village: str | None = None,
+    block: str | None = None,
+    bank_account: str | None = None,
+    ifsc: str | None = None,
+) -> dict[str, Any]:
+    """Save or update a resumable draft for the authenticated citizen. Drafts are not applications and are never shown in the officer queue until submit_application succeeds. Only supplied fields are updated; the citizen's mobile comes from the verified OAuth token."""
+    mobile = citizen_mobile()
+    supplied = {
+        "applicant_name": applicant_name, "dob": dob, "gender": gender,
+        "marital_status": marital_status, "village": village, "block": block,
+        "bank_account": bank_account, "ifsc": ifsc,
+    }
+    max_lengths = {"applicant_name": 100, "dob": 10, "gender": 10, "marital_status": 20,
+                   "village": 100, "block": 50, "bank_account": 30, "ifsc": 15}
+    updates = {}
+    for key, value in supplied.items():
+        if value is None:
+            continue
+        if not isinstance(value, str) or len(value) > max_lengths[key]:
+            return {"saved": False, "error": "invalid_field", "field": key,
+                    "message": "A supplied field has an invalid type or exceeds its allowed length."}
+        updates[key] = value.strip()
+    if not updates:
+        return {"saved": False, "error": "no_fields", "message": "Provide at least one field to save."}
+    conn = portal.get_db()
+    cur = conn.cursor()
+    try:
+        cur.execute("SELECT payload FROM application_drafts WHERE mobile = %s", (mobile,))
+        row = cur.fetchone()
+        payload = dict(row[0]) if row and isinstance(row[0], dict) else {}
+        payload.update(updates)
+        cur.execute(
+            "INSERT INTO application_drafts (mobile, payload, updated_at) VALUES (%s, %s::jsonb, %s) "
+            "ON CONFLICT (mobile) DO UPDATE SET payload = EXCLUDED.payload, updated_at = EXCLUDED.updated_at",
+            (mobile, json.dumps(payload, ensure_ascii=False), portal.now_ist()))
+        conn.commit()
+        required = ["applicant_name", "dob", "gender", "marital_status", "village", "block",
+                    "bank_account", "ifsc"]
+        missing = [key for key in required if not str(payload.get(key, "")).strip()]
+        return {"saved": True, "draft_only": True, "fields_saved": sorted(updates.keys()),
+                "missing_fields": missing, "age_proof_required_at_submission": True,
+                "updated_at": portal.now_ist().isoformat(timespec="seconds"),
+                "message": "Draft saved. This is not a submitted application."}
+    except Exception:
+        conn.rollback()
+        log.exception("citizen draft save failed")
+        return {"saved": False, "error": "draft_save_failed", "message": "The draft could not be saved. No submission was made."}
+    finally:
+        cur.close()
+        conn.close()
+
+
+@mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False))
+def resume_application_draft() -> dict[str, Any]:
+    """Retrieve the signed-in citizen's saved draft and identify which required fields remain. This never submits or approves an application."""
+    mobile = citizen_mobile()
+    conn = portal.get_db()
+    cur = conn.cursor()
+    cur.execute("SELECT payload, updated_at FROM application_drafts WHERE mobile = %s", (mobile,))
+    row = cur.fetchone()
+    cur.close()
+    conn.close()
+    if not row:
+        return {"found": False, "message": "No saved draft exists. Use save_application_draft to start one."}
+    payload, updated_at = row
+    if not isinstance(payload, dict):
+        payload = {}
+    required = ["applicant_name", "dob", "gender", "marital_status", "village", "block",
+                "bank_account", "ifsc"]
+    missing = [key for key in required if not str(payload.get(key, "")).strip()]
+    return {"found": True, "draft_only": True, "draft": payload, "missing_fields": missing,
+            "age_proof_required_at_submission": True,
+            "updated_at": updated_at.isoformat(timespec="seconds") if updated_at else None,
+            "message": "Resume the draft, verify the details with the citizen, then submit only after explicit confirmation."}
+
+
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False))
 def get_my_application() -> dict[str, Any]:
     """Retrieve the signed-in citizen's latest application and its official status, next steps and missing requirements. The citizen identity is derived only from the verified OAuth token."""
@@ -192,8 +275,13 @@ def get_my_application() -> dict[str, Any]:
         "FROM applications WHERE mobile = %s ORDER BY submitted_at DESC LIMIT 1", (mobile,))
     row = cur.fetchone()
     if not row:
+        cur.execute("SELECT updated_at FROM application_drafts WHERE mobile = %s", (mobile,))
+        draft_row = cur.fetchone()
         cur.close(); conn.close()
-        return {"found": False, "message": "No application is recorded for this signed-in mobile number. You may start an application if the scheme window is open."}
+        return {"found": False, "draft_available": bool(draft_row),
+                "draft_updated_at": draft_row[0].isoformat(timespec="seconds") if draft_row and draft_row[0] else None,
+                "message": "No submitted application is recorded. A saved draft is available to resume." if draft_row else
+                           "No application or saved draft is recorded for this signed-in mobile number. You may start a draft if the scheme window is open."}
     app_no, name, dob, village, block, status, submitted, decided = row
     cur.execute("SELECT action, note, at FROM audit_log WHERE application_id = (SELECT id FROM applications WHERE application_no = %s) ORDER BY at DESC LIMIT 1", (app_no,))
     audit = cur.fetchone()
@@ -283,6 +371,7 @@ def submit_application(
                 pass
             return {"submitted": False, "error": "validation_failed", "validation_errors": errors}
         app_id, app_no = portal.create_application(cur, mobile, cleaned)
+        cur.execute("DELETE FROM application_drafts WHERE mobile = %s", (mobile,))
         conn.commit()
         log.info("citizen application submitted app_id=%s actor_hash=%s", app_id, __import__("hashlib").sha256(mobile.encode()).hexdigest()[:12])
         return {"submitted": True, "application_number": app_no, "status": "PENDING",
