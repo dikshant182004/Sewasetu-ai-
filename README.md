@@ -33,6 +33,8 @@ Example deployment values (use a secrets manager for passwords and keys):
     OFFICER_MCP_PUBLIC_URL=https://agents.example.in/officer/mcp
     OFFICER_BLOCK_ASSIGNMENTS={"admin":["Sonari"],"meera.das":["Rajapara"]}
 
+For OAuth discovery, also route the path-specific metadata URLs to the matching MCP service. For the example URLs above, route `/.well-known/oauth-protected-resource/citizen/mcp` to the citizen MCP service and `/.well-known/oauth-protected-resource/officer/mcp` to the officer MCP service. The services also expose a root metadata fallback, but path-specific metadata avoids ambiguity when both MCPs share a hostname.
+
 After configuring your reverse proxy/TLS routes, start the services with:
 
     docker compose up --build -d db app smsgw citizen-mcp officer-mcp
