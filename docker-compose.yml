@@ -40,6 +40,7 @@ services:
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:8000}
       SECRET_KEY: ${SECRET_KEY:?set SECRET_KEY in .env (see .env.example)}
       PORTAL_ISSUER: ${PUBLIC_BASE_URL:-http://localhost:8000}
+      PORTAL_JWKS_URL: http://app:8000/.well-known/jwks.json
       # Set this to the exact public MCP resource URL in production. OAuth audience
       # validation intentionally fails if the client requests a different resource.
       CITIZEN_MCP_PUBLIC_URL: ${CITIZEN_MCP_PUBLIC_URL:-http://localhost:8100/mcp}
@@ -47,6 +48,7 @@ services:
       CITIZEN_MCP_ALLOWED_BLOCKS: ${CITIZEN_MCP_ALLOWED_BLOCKS:-Sonari}
     depends_on:
       - db
+      - app
     volumes:
       - uploads:/var/sewasetu/uploads
       - applogs:/var/log/sewasetu
