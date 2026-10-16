@@ -23,6 +23,15 @@ CREATE TABLE IF NOT EXISTS applications (
     decided_by      VARCHAR(50)
 );
 
+-- Drafts are keyed only by the authenticated citizen's mobile; never trust a mobile
+-- number supplied by the MCP caller. Drafts are not applications and do not enter
+-- the officer queue until normal submission validation succeeds.
+CREATE TABLE IF NOT EXISTS application_drafts (
+    mobile      VARCHAR(15) PRIMARY KEY,
+    payload     JSONB NOT NULL DEFAULT '{}'::jsonb,
+    updated_at  TIMESTAMP NOT NULL
+);
+
 -- Status portal accounts (created at submission time)
 CREATE TABLE IF NOT EXISTS portal_users (
     mobile        VARCHAR(15) PRIMARY KEY,
