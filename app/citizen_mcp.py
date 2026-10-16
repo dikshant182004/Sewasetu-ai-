@@ -29,6 +29,7 @@ import app as portal
 
 log = logging.getLogger("sewasetu.citizen_mcp")
 ISSUER = os.environ.get("PORTAL_ISSUER", os.environ.get("PUBLIC_BASE_URL", "http://localhost:8000")).rstrip("/")
+JWKS_URL = os.environ.get("PORTAL_JWKS_URL", ISSUER + "/.well-known/jwks.json")
 AUDIENCE = os.environ.get("CITIZEN_MCP_PUBLIC_URL", "http://localhost:8100/mcp").rstrip("/")
 JWKS_TTL_SECONDS = 300
 MAX_DOCUMENT_BYTES = 5 * 1024 * 1024
@@ -56,7 +57,7 @@ def _jwks() -> dict[str, Any]:
     now = time.monotonic()
     if _jwks_cache and now - _jwks_cache[0] < JWKS_TTL_SECONDS:
         return _jwks_cache[1]
-    response = requests.get(ISSUER + "/.well-known/jwks.json", timeout=3)
+    response = requests.get(JWKS_URL, timeout=3)
     response.raise_for_status()
     value = response.json()
     if not isinstance(value.get("keys"), list):
