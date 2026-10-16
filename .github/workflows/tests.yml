@@ -1,4 +1,4 @@
-name: Citizen MCP and portal tests
+name: Citizen and Officer MCP tests
 
 on:
   push:
