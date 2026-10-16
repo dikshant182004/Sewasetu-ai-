@@ -55,7 +55,7 @@ Sewa Setu is an OAuth authorization server. Third-party clients act for a citize
 - Sign-out: `/oauth/revoke`; people can also end sign-ins in the portal's connected-applications page
 - Public keys: `/.well-known/jwks.json`
 
-The Citizen MCP is a separate service and accepts only tokens whose issuer, exact audience, expiry, subject, role, and scope are valid for the citizen service. It exposes `get_scheme_rules`, `check_eligibility`, `save_application_draft`, `resume_application_draft`, `get_my_application`, and `submit_application`. The last tool writes through the portal's shared validation and creation functions; it does not approve applications or expose officer tools.
+The Citizen MCP is a separate service, defaults to the Sonari pilot block only (configurable with `CITIZEN_MCP_ALLOWED_BLOCKS`), and accepts only tokens whose issuer, exact audience, expiry, subject, role, and scope are valid for the citizen service. It exposes `get_scheme_rules`, `check_eligibility`, `save_application_draft`, `resume_application_draft`, `get_my_application`, and `submit_application`. The last tool writes through the portal's shared validation and creation functions; it does not approve applications or expose officer tools.
 
 **Citizen MCP design, security boundaries, run instructions and end-to-end test matrix:** see [docs/CITIZEN-MCP.md](docs/CITIZEN-MCP.md).
 
