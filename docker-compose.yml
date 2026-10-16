@@ -13,7 +13,7 @@ services:
   app:
     build: ./app
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     environment:
       TZ: Asia/Kolkata
       ADMIN_USERNAME: ${ADMIN_USERNAME:-admin}
@@ -34,7 +34,7 @@ services:
     build: ./app
     command: ["uvicorn", "citizen_mcp:asgi_app", "--host", "0.0.0.0", "--port", "8100", "--workers", "1"]
     ports:
-      - "8100:8100"
+      - "127.0.0.1:8100:8100"
     environment:
       TZ: Asia/Kolkata
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:8000}
@@ -57,7 +57,7 @@ services:
     build: ./app
     command: ["uvicorn", "officer_mcp:asgi_app", "--host", "0.0.0.0", "--port", "8200", "--workers", "1"]
     ports:
-      - "8200:8200"
+      - "127.0.0.1:8200:8200"
     environment:
       TZ: Asia/Kolkata
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL:-http://localhost:8000}
