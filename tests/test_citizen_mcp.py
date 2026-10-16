@@ -73,6 +73,14 @@ class CitizenTokenTests(unittest.TestCase):
             citizen_mcp.verify_bearer("Bearer " + self.token(role="officer", scope="officer",
                                                                sub="officer:admin"))
 
+    def test_wrong_scope_is_rejected(self):
+        with self.assertRaises(citizen_mcp.AuthError):
+            citizen_mcp.verify_bearer("Bearer " + self.token(scope="openid profile"))
+
+    def test_malformed_subject_is_rejected(self):
+        with self.assertRaises(citizen_mcp.AuthError):
+            citizen_mcp.verify_bearer("Bearer " + self.token(sub="citizen:123"))
+
     def test_expired_token_is_rejected(self):
         with self.assertRaises(citizen_mcp.AuthError):
             citizen_mcp.verify_bearer("Bearer " + self.token(exp=int(time.time()) - 60,
