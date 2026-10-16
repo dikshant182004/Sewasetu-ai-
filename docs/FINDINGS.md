@@ -32,7 +32,7 @@ library or the container image and must be checked on a running stack (`tests/ve
   This is the largest production risk.
 * **Status password = date of birth, reset to date of birth.** Weak, but changing it changes how
   citizens (and anyone reviewing the portal) sign in. Flagged for the department.
-* **One shared officer login.** No per-block officers exist in the data; the officer queue covers all blocks.
+* **Legacy web admin login is global.** The Officer MCP now supports distinct OAuth officer identities via OFFICER_ACCOUNTS_JSON and per-user block allowlists via OFFICER_BLOCK_ASSIGNMENTS, but the legacy /admin dashboard still uses one global admin credential and should be network-restricted or replaced before production.
 * **Withdraw then reapply restarts the 15-day clock.** Allowed by the portal's rules; now stated to the applicant.
 * **Magic-byte check on uploads** exists (`STRICT_DOC_CHECK=1`) but is off by default: it cannot tell a
   genuine document from a forged one, and would reject any placeholder file used in testing.
