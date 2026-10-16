@@ -35,7 +35,7 @@ Configure `CITIZEN_MCP_PUBLIC_URL` to the exact public resource URL (including `
 
 ## Security boundaries and known limitations
 
-- JWTs are verified with the portal's public JWKS; the MCP process does not need the portal's private signing key.
+- JWTs are verified with the portal's public JWKS; the MCP process does not need the portal's private signing key. In Compose, the JWKS is fetched over the internal `app:8000` service address while issuer and audience claims are still validated against their exact public URLs.
 - Only the verified token subject determines which mobile number is queried or used for submission.
 - SQL values are parameterized, uploaded file names are passed to the portal's server-side file validator, and application status is read from the database.
 - The MCP does not make officer decisions, alter statuses, issue tokens, or expose the officer tool set.
