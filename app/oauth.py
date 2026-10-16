@@ -387,9 +387,26 @@ def login():
                         _update_request(rid, pending_mobile=mobile)
                         req["pending_mobile"] = mobile
         else:
-            if (portal.ADMIN_PASSWORD and request.form.get("username") == portal.ADMIN_USERNAME and
-                    request.form.get("password") == portal.ADMIN_PASSWORD):
-                _update_request(rid, subject="officer:" + portal.ADMIN_USERNAME)
+            username = (request.form.get("username") or "").strip()
+            password = request.form.get("password") or ""
+            # Optional per-officer credentials allow distinct identities. The legacy
+            # departmental admin remains available unless explicitly overridden in JSON.
+            # Keep this mapping in deployment secrets, never in source control.
+            try:
+                configured = json.loads(os.environ.get("OFFICER_ACCOUNTS_JSON", "{}") or "{}")
+            except json.JSONDecodeError:
+                configured = {}
+                portal.app.logger.error("OFFICER_ACCOUNTS_JSON is not valid JSON")
+            if not isinstance(configured, dict):
+                configured = {}
+            if username in configured:
+                expected = configured.get(username)
+                authenticated = isinstance(expected, str) and bool(expected) and secrets.compare_digest(password, expected)
+            else:
+                authenticated = (portal.ADMIN_PASSWORD and username == portal.ADMIN_USERNAME and
+                                 secrets.compare_digest(password, portal.ADMIN_PASSWORD))
+            if authenticated:
+                _update_request(rid, subject="officer:" + username)
                 return redirect(url_for("oauth.consent", rid=rid))
             flash("Invalid credentials.")
     return render_template("oauth_login.html", rid=rid, role=role,
