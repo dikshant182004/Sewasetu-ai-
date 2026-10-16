@@ -2,10 +2,12 @@
 
 Department of Social Welfare, Government of Purvanchal. Maintained in-house.
 
-## Running
+## Running locally
 
-```
-ADMIN_PASSWORD=pick-something docker compose up --build
+Copy `.env.example` to `.env`, replace `ADMIN_PASSWORD` and `SECRET_KEY` with local-only secrets, then run:
+
+```bash
+docker compose up --build -d db app smsgw citizen-mcp officer-mcp officer-mcp
 ```
 
 - Portal: http://localhost:8000
@@ -13,6 +15,8 @@ ADMIN_PASSWORD=pick-something docker compose up --build
 - Departmental login: http://localhost:8000/admin (user `admin`, password from `ADMIN_PASSWORD`)
 - Citizen MCP (Streamable HTTP): http://localhost:8100/mcp
 - Citizen MCP health: http://localhost:8100/healthz
+- Officer MCP (Streamable HTTP): http://localhost:8200/mcp
+- Officer MCP health: http://localhost:8200/healthz
 - SMS gateway console (simulated telecom): http://localhost:8000/__gateway/ — OTPs and notifications appear here once delivered. Do not expose this simulated inbox as a production SMS service.
 - Database: Postgres, loaded from `seed/seed.sql` on first boot (~100k applications).
 
@@ -37,10 +41,10 @@ Departmental users see a dashboard, list and filter applications, approve or rej
 ## Layout
 
 ```
-app/          Flask application, citizen MCP service, templates, config, nightly job
+app/          Flask application, citizen and officer MCP services, templates, config, nightly job
 seed/         seed.sql — production data snapshot
 smsgw/        simulated SMS gateway
-tests/        portal tests and citizen MCP token-validation tests
+tests/        portal tests and citizen/officer MCP token-validation tests
 docs/         hardening findings and MCP design notes
 ```
 
@@ -55,11 +59,13 @@ Sewa Setu is an OAuth authorization server. Third-party clients act for a citize
 - Sign-out: `/oauth/revoke`; people can also end sign-ins in the portal's connected-applications page
 - Public keys: `/.well-known/jwks.json`
 
-The Citizen MCP is a separate service, defaults to the Sonari pilot block only (configurable with `CITIZEN_MCP_ALLOWED_BLOCKS`), and accepts only tokens whose issuer, exact audience, expiry, subject, role, and scope are valid for the citizen service. It exposes `get_scheme_rules`, `check_eligibility`, `save_application_draft`, `resume_application_draft`, `get_my_application`, and `submit_application`. The last tool writes through the portal's shared validation and creation functions; it does not approve applications or expose officer tools.
+The Citizen MCP is a separate service, defaults to the Sonari pilot block only (configurable with `CITIZEN_MCP_ALLOWED_BLOCKS`), and accepts only tokens whose issuer, exact audience, expiry, subject, role, and scope are valid for the citizen service. It exposes `get_scheme_rules`, `check_eligibility`, `save_application_draft`, `resume_application_draft`, `get_my_application`, and `submit_application`. It writes through the portal's shared validation and creation functions; it cannot approve cases.
 
-**Citizen MCP design, security boundaries, run instructions and end-to-end test matrix:** see [docs/CITIZEN-MCP.md](docs/CITIZEN-MCP.md).
+The Officer MCP is a separate service on port 8200. It requires an officer-scoped token and a server-side block assignment, and exposes `list_my_pending_queue`, `get_case`, `get_case_evidence`, `record_case_decision`, and `get_recorded_decision`. Decisions go through the portal's existing `decide_application()` function and write to the portal audit log.
 
-Long-lived officer program tokens are issued by an administrator at `/admin/tokens`; do not use them for citizen workflows.
+Design and testing notes: [docs/CITIZEN-MCP.md](docs/CITIZEN-MCP.md) and [docs/OFFICER-MCP.md](docs/OFFICER-MCP.md).
+
+Long-lived officer program tokens can be issued at `/admin/tokens`; if used, their audience must be set to the exact Officer MCP public URL. Prefer the normal OAuth sign-in and consent flow for the assessment.
 
 ## Running the fixed portal and tests
 
@@ -69,7 +75,7 @@ cp .env.example .env
 docker compose up --build -d db app smsgw citizen-mcp
 # Start the scheduler separately when ready to exercise deemed approval:
 docker compose up -d scheduler
-python3 -m unittest discover -s tests -v
+python -m unittest discover -s tests -v
 ```
 
 Existing database (not a fresh `docker compose down -v`)? Apply the migration once:
