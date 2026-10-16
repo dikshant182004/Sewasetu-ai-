@@ -50,6 +50,30 @@ To configure an extra local officer, set both environment values in .env, for ex
 
 Use a real MCP client to perform the OAuth flow with scope officer and resource http://localhost:8200/mcp. Do not paste an access token into source code or commit it.
 
+## Testing with a real MCP client
+
+First verify the public-resource metadata and auth challenge:
+
+    curl -i http://localhost:8200/healthz
+    curl -i http://localhost:8200/.well-known/oauth-protected-resource/mcp
+    curl -i http://localhost:8200/mcp
+
+The final request should be unauthorized without a token and include a WWW-Authenticate challenge with resource_metadata and scope=officer. The metadata should name the portal issuer and the exact OFFICER_MCP_PUBLIC_URL resource. Repeat for the citizen service on port 8100 and confirm it advertises only the citizen scope.
+
+For an interactive OAuth test, install/use Node.js and run:
+
+    npx @modelcontextprotocol/inspector
+
+Choose Streamable HTTP, enter the endpoint URL, open Auth Settings, select Quick OAuth Flow, and complete the portal login and consent. Repeat separately for http://localhost:8100/mcp and http://localhost:8200/mcp. Check that tools/list returns only citizen tools on the citizen endpoint and only officer tools on the officer endpoint.
+
+To test with Claude Code:
+
+    claude mcp add --transport http sewasetu-citizen http://localhost:8100/mcp
+    claude mcp add --transport http sewasetu-officer http://localhost:8200/mcp
+    claude
+
+Then use /mcp to complete OAuth for each server. For a remote deployment, replace localhost URLs with the public HTTPS resource URLs. Never use a production citizen's personal details or age-proof documents as test data.
+
 ## Decision and audit guarantees
 
 The decision tool locks the selected application row, checks the case is in an assigned block and still PENDING, then calls the portal's shared decide_application() function in the same database transaction. This enforces the existing minimum reason length and prevents a second decision after the case leaves pending status. The tool commits the portal status and audit row together and returns an audit_log:<id> reference. The portal dashboard sees the same application and audit event.
