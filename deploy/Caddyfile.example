@@ -1,0 +1,14 @@
+# Example Caddyfile for a single VPS with Caddy installed on the host.
+# Replace all example.com hostnames with DNS records pointing to the VPS.
+# Caddy provisions and renews HTTPS certificates automatically.
+portal.example.com {
+    reverse_proxy 127.0.0.1:8000
+}
+
+citizen-mcp.example.com {
+    reverse_proxy 127.0.0.1:8100
+}
+
+officer-mcp.example.com {
+    reverse_proxy 127.0.0.1:8200
+}
