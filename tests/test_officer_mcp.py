@@ -52,10 +52,13 @@ class OfficerTokenTests(unittest.TestCase):
                           headers={"kid": "officer-test-key"})
 
     def test_rfc9728_metadata_is_path_specific(self):
+        from urllib.parse import urlsplit
+        resource = urlsplit(officer_mcp.AUDIENCE)
         self.assertEqual(officer_mcp.RESOURCE_METADATA_PATH,
-                         "/.well-known/oauth-protected-resource/mcp")
-        self.assertEqual(officer_mcp.RESOURCE_METADATA_URL,
-                         "http://localhost:8200/.well-known/oauth-protected-resource/mcp")
+                         "/.well-known/oauth-protected-resource" + resource.path.rstrip("/"))
+        metadata = urlsplit(officer_mcp.RESOURCE_METADATA_URL)
+        self.assertEqual((metadata.scheme, metadata.netloc), (resource.scheme, resource.netloc))
+        self.assertEqual(metadata.path, officer_mcp.RESOURCE_METADATA_PATH)
 
     def test_valid_assigned_officer_is_accepted(self):
         claims = officer_mcp.verify_bearer("Bearer " + self.token())
