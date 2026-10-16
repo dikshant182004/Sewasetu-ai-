@@ -22,22 +22,27 @@ docker compose up --build -d db app smsgw citizen-mcp officer-mcp
 
 ## Deploying on a server
 
-Set PUBLIC_BASE_URL to the portal's public HTTPS address and set both MCP public URLs to their exact externally reachable resource URLs, including /mcp. The OAuth client must request the matching URL as resource; each MCP rejects tokens issued for another audience. Put the portal and both MCPs behind HTTPS.
+Use a Linux VM with Docker Compose and a public IPv4 address. Point three DNS names at the VM and terminate HTTPS with Caddy or an equivalent reverse proxy. The Compose file binds ports 8000, 8100, and 8200 to loopback only, so the public reverse proxy is the intended entry point; expose only SSH, HTTP, and HTTPS in the VM firewall.
 
-Configure block-level officer access in OFFICER_BLOCK_ASSIGNMENTS, a JSON map from officer username to allowed block names. The default is the configured ADMIN_USERNAME assigned to Sonari only. For distinct OAuth officer accounts, set OFFICER_ACCOUNTS_JSON to a JSON map of username to password using deployment secrets; do not commit real credentials. The legacy web dashboard login remains global and must be restricted separately.
+Set the exact externally reachable URLs before starting the services. The token issuer must be the portal URL, and each MCP public URL must include /mcp because it becomes that service's OAuth audience.
 
-Example deployment values (use a secrets manager for passwords and keys):
+    PUBLIC_BASE_URL=https://portal.example.com
+    CITIZEN_MCP_PUBLIC_URL=https://citizen-mcp.example.com/mcp
+    OFFICER_MCP_PUBLIC_URL=https://officer-mcp.example.com/mcp
+    OFFICER_BLOCK_ASSIGNMENTS={"admin":["Sonari"],"reviewer":["Sonari"]}
+    OFFICER_ACCOUNTS_JSON={"reviewer":"replace-with-a-strong-unique-password"}
 
-    PUBLIC_BASE_URL=https://sewasetu.example.in
-    CITIZEN_MCP_PUBLIC_URL=https://agents.example.in/citizen/mcp
-    OFFICER_MCP_PUBLIC_URL=https://agents.example.in/officer/mcp
-    OFFICER_BLOCK_ASSIGNMENTS={"admin":["Sonari"],"meera.das":["Rajapara"]}
+Configure ADMIN_PASSWORD and SECRET_KEY with strong unique secrets too. Keep .env out of Git. Store real deployment credentials in your VM's protected environment/secrets store. The example officer account above is only a placeholder; set the same username in OFFICER_BLOCK_ASSIGNMENTS and OFFICER_ACCOUNTS_JSON.
 
-For OAuth discovery, also route the path-specific metadata URLs to the matching MCP service. For the example URLs above, route `/.well-known/oauth-protected-resource/citizen/mcp` to the citizen MCP service and `/.well-known/oauth-protected-resource/officer/mcp` to the officer MCP service. The services also expose a root metadata fallback, but path-specific metadata avoids ambiguity when both MCPs share a hostname.
+A host-installed Caddy example is in [deploy/Caddyfile.example](deploy/Caddyfile.example). Replace the example hostnames, install the file as the Caddy configuration, ensure DNS points to the VM, then reload Caddy. Because each MCP uses its own hostname, the path-specific OAuth protected-resource metadata is routed to the correct MCP automatically.
 
-After configuring your reverse proxy/TLS routes, start the services with:
+Start the stack:
 
     docker compose up --build -d db app smsgw citizen-mcp officer-mcp
+    docker compose ps
+    docker compose logs --tail=100 app citizen-mcp officer-mcp
+
+Review docs/FINDINGS.md before exposing the demo. In particular, /__gateway/ is a simulated SMS inbox that exposes OTPs; this is assessment-only and must never be used with real citizens or real personal data. Keep the VM and public endpoints available for the assessment period, then shut them down or restrict access.
 
 ## What the portal does
 
