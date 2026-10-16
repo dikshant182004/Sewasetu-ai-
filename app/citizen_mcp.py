@@ -33,7 +33,7 @@ AUDIENCE = os.environ.get("CITIZEN_MCP_PUBLIC_URL", "http://localhost:8100/mcp")
 JWKS_TTL_SECONDS = 300
 MAX_DOCUMENT_BYTES = 5 * 1024 * 1024
 # Deliberately limited assessment rollout. Never broaden from a tool argument.
-ALLOWED_BLOCKS = tuple(b for b in os.environ.get("CITIZEN_MCP_ALLOWED_BLOCKS", "Sonari,Rajapara").split(",") if b.strip() in portal.BLOCKS)
+ALLOWED_BLOCKS = tuple(b.strip() for b in os.environ.get("CITIZEN_MCP_ALLOWED_BLOCKS", "Sonari").split(",") if b.strip() in portal.BLOCKS)
 if not ALLOWED_BLOCKS:
     raise RuntimeError("CITIZEN_MCP_ALLOWED_BLOCKS must contain at least one portal-supported block")
 _claims: contextvars.ContextVar[dict[str, Any] | None] = contextvars.ContextVar("citizen_claims", default=None)
