@@ -15,6 +15,7 @@ import time
 from contextlib import asynccontextmanager
 from datetime import date, datetime, timedelta
 from typing import Any
+from urllib.parse import urlsplit, urlunsplit
 
 import jwt
 import requests
@@ -31,6 +32,13 @@ log = logging.getLogger("sewasetu.citizen_mcp")
 ISSUER = os.environ.get("PORTAL_ISSUER", os.environ.get("PUBLIC_BASE_URL", "http://localhost:8000")).rstrip("/")
 JWKS_URL = os.environ.get("PORTAL_JWKS_URL", ISSUER + "/.well-known/jwks.json")
 AUDIENCE = os.environ.get("CITIZEN_MCP_PUBLIC_URL", "http://localhost:8100/mcp").rstrip("/")
+# RFC 9728 protected-resource metadata. The endpoint path is included so
+# two MCP services on one public host can advertise different scopes/resources.
+_resource_url = urlsplit(AUDIENCE)
+if not _resource_url.scheme or not _resource_url.netloc or _resource_url.query or _resource_url.fragment:
+    raise RuntimeError("The MCP public URL must be an absolute URL without query or fragment")
+RESOURCE_METADATA_PATH = "/.well-known/oauth-protected-resource" + _resource_url.path.rstrip("/")
+RESOURCE_METADATA_URL = urlunsplit((_resource_url.scheme, _resource_url.netloc, RESOURCE_METADATA_PATH, "", ""))
 JWKS_TTL_SECONDS = 300
 MAX_DOCUMENT_BYTES = 5 * 1024 * 1024
 # Deliberately limited assessment rollout. Never broaden from a tool argument.
@@ -108,12 +116,20 @@ class CitizenAuthMiddleware:
         if path == "/healthz":
             response = JSONResponse({"status": "ok", "service": "citizen-mcp"})
             return await response(scope, receive, send)
+        if path in (RESOURCE_METADATA_PATH, "/.well-known/oauth-protected-resource"):
+            response = JSONResponse({
+                "resource": AUDIENCE,
+                "authorization_servers": [ISSUER],
+                "scopes_supported": ["citizen"],
+                "bearer_methods_supported": ["header"],
+            })
+            return await response(scope, receive, send)
         headers = {k.decode("latin1").lower(): v.decode("latin1") for k, v in scope.get("headers", [])}
         try:
             claims = verify_bearer(headers.get("authorization"))
         except AuthError as exc:
             response = JSONResponse({"error": "unauthorized", "message": str(exc)}, status_code=401,
-                                    headers={"WWW-Authenticate": 'Bearer realm="sewasetu-citizen-mcp"'})
+                                    headers={"WWW-Authenticate": f'Bearer resource_metadata="{RESOURCE_METADATA_URL}", scope="citizen"'})
             return await response(scope, receive, send)
         token = _claims.set(claims)
         try:
