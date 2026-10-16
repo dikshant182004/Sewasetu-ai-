@@ -5,3 +5,4 @@ fpdf2>=2.7.9,<2.9
 uharfbuzz>=0.37          # text shaping for Bengali/Assamese in the acknowledgment PDF
 gunicorn==20.1.0
 PyJWT[crypto]==2.9.0
+mcp==1.29.0              # maintained MCP SDK v1 line; Streamable HTTP transport
