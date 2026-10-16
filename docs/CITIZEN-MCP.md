@@ -4,7 +4,7 @@
 
 The citizen service is a separate Streamable HTTP MCP endpoint at `/mcp` on port 8100. It is deliberately not mounted into the officer tool surface. It authenticates each HTTP request using the portal's RS256 JWKS and checks issuer, exact audience, expiry, citizen role, citizen scope, and the `citizen:<mobile>` subject. Tool arguments cannot select another applicant's mobile number.
 
-The portal remains the system of record. `submit_application` calls `portal.validate_application()`, `portal.store_age_proof()`, and `portal.create_application()`; it does not duplicate the eligibility rules or write a parallel application table. A database uniqueness constraint remains the final defense against concurrent active submissions. The server returns an application number only after the database commit succeeds.
+Drafts live in a separate `application_drafts` table and are not applications; they never enter the officer queue. The authenticated subject determines the draft key. The portal remains the system of record for submitted applications. `submit_application` calls `portal.validate_application()`, `portal.store_age_proof()`, and `portal.create_application()`; it does not duplicate the eligibility rules or write a parallel application table. A database uniqueness constraint remains the final defense against concurrent active submissions. The server returns an application number only after the database commit succeeds.
 
 ## Tools
 
@@ -12,6 +12,8 @@ The portal remains the system of record. `submit_application` calls `portal.vali
 | --- | --- | --- |
 | `get_scheme_rules` | Live scheme configuration, required fields, blocks, SLA | Read-only, idempotent |
 | `check_eligibility` | Preflight details with the portal's validator; no write | Read-only, idempotent |
+| `save_application_draft` | Save or update the authenticated citizen's partial form data | Mutating, idempotent |
+| `resume_application_draft` | Retrieve that citizen's saved draft and missing fields | Read-only, idempotent |
 | `get_my_application` | Latest application for the verified token subject | Read-only, idempotent |
 | `submit_application` | Validate and submit a complete application with age proof | Mutating, destructive hint, non-idempotent |
 
