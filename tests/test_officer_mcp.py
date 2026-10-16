@@ -51,6 +51,12 @@ class OfficerTokenTests(unittest.TestCase):
         return jwt.encode(claims, self.private, algorithm="RS256",
                           headers={"kid": "officer-test-key"})
 
+    def test_rfc9728_metadata_is_path_specific(self):
+        self.assertEqual(officer_mcp.RESOURCE_METADATA_PATH,
+                         "/.well-known/oauth-protected-resource/mcp")
+        self.assertEqual(officer_mcp.RESOURCE_METADATA_URL,
+                         "http://localhost:8200/.well-known/oauth-protected-resource/mcp")
+
     def test_valid_assigned_officer_is_accepted(self):
         claims = officer_mcp.verify_bearer("Bearer " + self.token())
         self.assertEqual(claims["sub"], "officer:admin")
