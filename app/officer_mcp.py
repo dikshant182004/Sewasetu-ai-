@@ -173,6 +173,14 @@ def _valid_application_number(value: str) -> bool:
     return isinstance(value, str) and APPLICATION_NO_RE.fullmatch(value) is not None
 
 
+def _json_safe_checks(checks: dict[str, Any]) -> dict[str, Any]:
+    """Convert portal datetime values to JSON-safe ISO strings for MCP clients."""
+    result = {}
+    for key, value in checks.items():
+        result[key] = value.isoformat(timespec="seconds") if isinstance(value, datetime) else value
+    return result
+
+
 def _find_case(cur, application_number: str, blocks: tuple[str, ...], *, for_update: bool = False):
     sql = (
         "SELECT id, application_no, applicant_name, mobile, dob, gender, marital_status, "
@@ -253,7 +261,7 @@ def get_case(application_number: str) -> dict[str, Any]:
             "submitted_at": submitted.isoformat(timespec="seconds") if submitted else None,
             "decided_at": decided.isoformat(timespec="seconds") if decided else None,
             "decided_by": decided_by,
-            "checks": checks,
+            "checks": _json_safe_checks(checks),
             "age_proof": {"available": portal.doc_on_file(mobile, doc_path),
                           "retrieval_tool": "get_case_evidence" if portal.doc_on_file(mobile, doc_path) else None},
             "note": "The portal's recorded data and computed checks are authoritative; an AI assistant must not infer a decision from them.",
