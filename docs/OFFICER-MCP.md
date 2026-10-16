@@ -18,7 +18,7 @@ The pilot default is deliberately narrow: the configured departmental admin iden
 
 ## Identity and block assignments
 
-The normal sign-in flow is OAuth authorization code + PKCE S256 at the portal. The officer signs in and consents to the officer scope. The MCP checks the token on every HTTP request; citizen tokens and tokens for a different MCP audience are rejected.
+The normal sign-in flow is OAuth authorization code + PKCE S256 at the portal. The officer signs in and consents to the officer scope. The MCP checks the token on every HTTP request; citizen tokens and tokens for a different MCP audience are rejected. It exposes RFC 9728 protected-resource metadata at the path-specific well-known URL derived from the public MCP URL and includes that URL plus the required officer scope in its 401 WWW-Authenticate challenge, allowing OAuth-capable MCP clients to discover the portal authorization server.
 
 - OFFICER_BLOCK_ASSIGNMENTS: JSON object mapping OAuth usernames to an array of exact block names. Example: {"admin":["Sonari"],"meera.das":["Sonari","Rajapara"]}.
 - OFFICER_ACCOUNTS_JSON: optional JSON object mapping additional OAuth officer usernames to passwords. Example: {"meera.das":"use-a-unique-long-secret"}. Store this in deployment secrets, never commit real credentials. The legacy ADMIN_USERNAME / ADMIN_PASSWORD login remains available unless that username is explicitly defined in the JSON map.
