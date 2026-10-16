@@ -30,7 +30,7 @@ class CitizenTokenTests(unittest.TestCase):
         cls.jwks = {"keys": [jwk]}
         citizen_mcp._jwks_cache = None
         cls.original_jwks = citizen_mcp._jwks
-        citizen_mcp._jwks = staticmethod(lambda: cls.jwks)
+        citizen_mcp._jwks = lambda: cls.jwks
 
     @classmethod
     def tearDownClass(cls):
