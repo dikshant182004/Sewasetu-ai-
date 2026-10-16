@@ -51,6 +51,13 @@ class DecisionTests(unittest.TestCase):
                                   channel="AI assistant")
         self.assertEqual(cur.calls[1][1][3], "Documents verified [via AI assistant]")
 
+    def test_officer_mcp_decisions_are_attributed_to_officer_not_admin(self):
+        cur = RecordingCursor()
+        portal.decide_application(cur, 7, "APPROVED", "Documents verified", "meera.das",
+                                  channel="officer-mcp")
+        self.assertEqual(cur.calls[1][1][2], "officer:meera.das")
+        self.assertIn("[via officer-mcp]", cur.calls[1][1][3])
+
     def test_long_input_fits_the_audit_columns(self):
         cur = RecordingCursor()
         portal.decide_application(cur, 7, "APPROVED", "r" * 900, "o" * 80, channel="AI assistant")
