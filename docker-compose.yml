@@ -44,8 +44,6 @@ services:
       # Set this to the exact public MCP resource URL in production. OAuth audience
       # validation intentionally fails if the client requests a different resource.
       CITIZEN_MCP_PUBLIC_URL: ${CITIZEN_MCP_PUBLIC_URL:-http://localhost:8100/mcp}
-      # Start with Sonari only; expand after pilot evaluations.
-      CITIZEN_MCP_ALLOWED_BLOCKS: ${CITIZEN_MCP_ALLOWED_BLOCKS:-Sonari}
     depends_on:
       - db
       - app
