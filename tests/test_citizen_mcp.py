@@ -60,6 +60,16 @@ class CitizenTokenTests(unittest.TestCase):
         self.assertEqual((metadata.scheme, metadata.netloc), (resource.scheme, resource.netloc))
         self.assertEqual(metadata.path, citizen_mcp.RESOURCE_METADATA_PATH)
 
+    def test_scheme_rules_do_not_advertise_an_mcp_only_block_allowlist(self):
+        rules = citizen_mcp.get_scheme_rules()
+        self.assertNotIn("supported_blocks_for_agent_channel", rules)
+        self.assertEqual(rules["minimum_age"], citizen_mcp.portal.MIN_AGE)
+        self.assertEqual(rules["processing_sla_days"], citizen_mcp.portal.SLA_DAYS)
+        self.assertIn("assignment scheme brief", rules["source"])
+        self.assertIn("live portal configuration", rules["source"])
+        self.assertNotIn("restricted", rules["source"])
+        self.assertNotIn("Sonari", rules["source"])
+
     def test_valid_citizen_token_is_accepted(self):
         claims = citizen_mcp.verify_bearer("Bearer " + self.token())
         self.assertEqual(claims["sub"], "citizen:9000000001")
