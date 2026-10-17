@@ -41,10 +41,6 @@ RESOURCE_METADATA_PATH = "/.well-known/oauth-protected-resource" + _resource_url
 RESOURCE_METADATA_URL = urlunsplit((_resource_url.scheme, _resource_url.netloc, RESOURCE_METADATA_PATH, "", ""))
 JWKS_TTL_SECONDS = 300
 MAX_DOCUMENT_BYTES = 5 * 1024 * 1024
-# Deliberately limited assessment rollout. Never broaden from a tool argument.
-ALLOWED_BLOCKS = tuple(b.strip() for b in os.environ.get("CITIZEN_MCP_ALLOWED_BLOCKS", "Sonari").split(",") if b.strip() in portal.BLOCKS)
-if not ALLOWED_BLOCKS:
-    raise RuntimeError("CITIZEN_MCP_ALLOWED_BLOCKS must contain at least one portal-supported block")
 _claims: contextvars.ContextVar[dict[str, Any] | None] = contextvars.ContextVar("citizen_claims", default=None)
 _jwks_cache: tuple[float, dict[str, Any]] | None = None
 
@@ -151,7 +147,6 @@ def _public_rules() -> dict[str, Any]:
         "monthly_amount": 250,
         "currency": "INR",
         "minimum_age": portal.MIN_AGE,
-        "supported_blocks_for_agent_channel": list(ALLOWED_BLOCKS),
         "required_fields": ["applicant_name", "dob (DD/MM/YYYY)", "gender", "marital_status",
                             "village", "block", "bank_account", "ifsc", "age_proof_document"],
         "age_proof_formats": ["PDF", "JPG", "JPEG", "PNG"],
@@ -159,13 +154,13 @@ def _public_rules() -> dict[str, Any]:
         "scheme_window_open": portal.deadline_remaining() is not None,
         "processing_sla_days": portal.SLA_DAYS,
         "decision_rule": "A pending case may be deemed approved after the statutory SLA only through the portal's scheduled process and subject to the portal's rules.",
-        "source": "Pension amount from the assignment scheme brief; age, window, SLA and form validation from the live portal; supported blocks are intentionally restricted for the agent rollout.",
+        "source": "Monthly pension amount is specified in the assignment scheme brief. Minimum age, scheme-window status, processing SLA, and application validation are read from the live portal configuration.",
     }
 
 
 @mcp.tool(annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True, openWorldHint=False))
 def get_scheme_rules() -> dict[str, Any]:
-    """Return the current pension amount, age threshold, supported blocks, required evidence, scheme-window state and processing SLA from the live portal configuration."""
+    """Return the pension amount, age threshold, required evidence, scheme-window state and processing SLA. The portal remains authoritative for the supported blocks and all application validation."""
     return _public_rules()
 
 
@@ -186,8 +181,6 @@ def check_eligibility(
             "bank_account": bank_account, "ifsc": ifsc}
     errors, cleaned = portal.validate_application(data, None, mobile=citizen_mobile())
     errors = [e for e in errors if e != "age proof document is required"]
-    if block not in ALLOWED_BLOCKS:
-        errors.append("This agent-assisted service is currently available only in: " + ", ".join(ALLOWED_BLOCKS))
     conn = portal.get_db()
     cur = conn.cursor()
     cur.execute("SELECT application_no, status FROM applications WHERE mobile = %s AND status IN %s ORDER BY submitted_at DESC LIMIT 1",
@@ -217,9 +210,6 @@ def save_application_draft(
 ) -> dict[str, Any]:
     """Save or update a resumable draft for the authenticated citizen. Drafts are not applications and are never shown in the officer queue until submit_application succeeds. Only supplied fields are updated; the citizen's mobile comes from the verified OAuth token."""
     mobile = citizen_mobile()
-    if block is not None and block.strip() and block.strip() not in ALLOWED_BLOCKS:
-        return {"saved": False, "error": "block_not_supported", "supported_blocks": list(ALLOWED_BLOCKS),
-                "message": "This agent-assisted service is currently limited to the listed blocks. Use the portal for other blocks."}
     supplied = {
         "applicant_name": applicant_name, "dob": dob, "gender": gender,
         "marital_status": marital_status, "village": village, "block": block,
@@ -280,8 +270,6 @@ def resume_application_draft() -> dict[str, Any]:
     payload, updated_at = row
     if not isinstance(payload, dict):
         payload = {}
-    if payload.get("block") and payload.get("block") not in ALLOWED_BLOCKS:
-        return {"found": False, "supported": False, "message": "This draft is for a block not currently supported by the agent-assisted service. Continue through the portal."}
     required = ["applicant_name", "dob", "gender", "marital_status", "village", "block",
                 "bank_account", "ifsc"]
     missing = [key for key in required if not str(payload.get(key, "")).strip()]
@@ -310,10 +298,6 @@ def get_my_application() -> dict[str, Any]:
                 "message": "No submitted application is recorded. A saved draft is available to resume." if draft_row else
                            "No application or saved draft is recorded for this signed-in mobile number. You may start a draft if the scheme window is open."}
     app_no, name, dob, village, block, status, submitted, decided = row
-    if block not in ALLOWED_BLOCKS:
-        cur.close(); conn.close()
-        return {"found": False, "supported": False,
-                "message": "This application belongs to a block not currently supported by the agent-assisted service. Please use the Seva Setu portal."}
     cur.execute("SELECT action, note, at FROM audit_log WHERE application_id = (SELECT id FROM applications WHERE application_no = %s) ORDER BY at DESC LIMIT 1", (app_no,))
     audit = cur.fetchone()
     cur.close(); conn.close()
@@ -371,9 +355,6 @@ def submit_application(
     if applicant_confirmed_submission is not True:
         return {"submitted": False, "error": "citizen_confirmation_required", "message": "No application was submitted. Review the details and obtain the citizen's explicit confirmation first."}
     mobile = citizen_mobile()
-    if block not in ALLOWED_BLOCKS:
-        return {"submitted": False, "error": "block_not_supported", "supported_blocks": list(ALLOWED_BLOCKS),
-                "message": "This agent-assisted service is currently limited to the listed blocks. Use the portal for other blocks."}
     if len(age_proof_base64) > ((MAX_DOCUMENT_BYTES + 2) // 3) * 4 + 16:
         return {"submitted": False, "error": "document_too_large", "message": "Age proof must be 5 MiB or smaller."}
     try:
