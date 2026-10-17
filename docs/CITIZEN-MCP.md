@@ -2,7 +2,7 @@
 
 ## Contract
 
-The citizen service is a separate Streamable HTTP MCP endpoint at `/mcp` on port 8100. The pilot allowlist defaults to **Sonari only** (the block named in the Director's example); configure `CITIZEN_MCP_ALLOWED_BLOCKS` with an explicit comma-separated subset of portal-supported blocks only after evaluation. It is deliberately not mounted into the officer tool surface. It authenticates each HTTP request using the portal's RS256 JWKS and checks issuer, exact audience, expiry, citizen role, citizen scope, and the `citizen:<mobile>` subject. It also advertises RFC 9728 protected-resource metadata and includes a resource_metadata/scope challenge in 401 responses so OAuth-capable MCP clients can discover the portal authorization server. Tool arguments cannot select another applicant's mobile number.
+The citizen service is a separate Streamable HTTP MCP endpoint at `/mcp` on port 8100. The citizen MCP does not maintain a separate block allowlist. It accepts the portal's supported blocks and delegates block validation to the portal's shared `validate_application()` rules. It is deliberately not mounted into the officer tool surface. It authenticates each HTTP request using the portal's RS256 JWKS and checks issuer, exact audience, expiry, citizen role, citizen scope, and the `citizen:<mobile>` subject. It also advertises RFC 9728 protected-resource metadata and includes a resource_metadata/scope challenge in 401 responses so OAuth-capable MCP clients can discover the portal authorization server. Tool arguments cannot select another applicant's mobile number.
 
 Drafts live in a separate `application_drafts` table and are not applications; they never enter the officer queue. The authenticated subject determines the draft key. The portal remains the system of record for submitted applications. `submit_application` calls `portal.validate_application()`, `portal.store_age_proof()`, and `portal.create_application()`; it does not duplicate the eligibility rules or write a parallel application table. A database uniqueness constraint remains the final defense against concurrent active submissions. The server returns an application number only after the database commit succeeds.
 
@@ -10,7 +10,7 @@ Drafts live in a separate `application_drafts` table and are not applications; t
 
 | Tool | Purpose | Annotation |
 | --- | --- | --- |
-| `get_scheme_rules` | Live scheme configuration, required fields, blocks, SLA | Read-only, idempotent |
+| `get_scheme_rules` | Live scheme configuration, required fields, SLA | Read-only, idempotent |
 | `check_eligibility` | Preflight details with the portal's validator; no write | Read-only, idempotent |
 | `save_application_draft` | Save or update the authenticated citizen's partial form data | Mutating, idempotent |
 | `resume_application_draft` | Retrieve that citizen's saved draft and missing fields | Read-only, idempotent |
